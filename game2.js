@@ -1,18 +1,18 @@
 // Game Entities
 
 // Player Object
-function Player(x, y) {
+function Player(x) {
   this.x = x;
-  this.y = y;
+  this.y = 180;
   this.width = 20;
   this.height = 20;
-  this.direction = 1;
 }
 
-Player.prototype.update = function() {
-  if (this.y <= 0 || this.y+this.height >= game.gameFieldHeight()) {
-    this.direction *= -1;
+Player.prototype.move = function(d) {
+  if (this.x+d < 0 || this.x+this.width+d > game.gameFieldWidth()) {
+    return;
   }
+  this.x += d;
 }
 
 // Enemy Object
@@ -20,17 +20,27 @@ function Enemy(x, y) {
   this.x = x;
   this.y = y;
   this.width = 10;
-  this.height = 10;
+  this.height = 6;
   this.direction = -1;
 }
 
 Enemy.prototype.update = function() {
-  if (this.y <= 0 || this.y+this.height >= game.gameFieldHeight()) {
-    this.direction *= -1;
+  if (this.x <= 0 || this.x + this.width >= game.gameFieldWidth()) {
+    return true;
   }
+  return false;
 }
 
-// Renderer object
+Enemy.prototype.advance = function() {
+  this.direction *= -1;
+  this.y += 10;
+  if (this.y + this.height >= game.gameFieldHeight()) {
+    return true
+  }
+  return false
+}
+
+// Renderer
 var renderer = (function () {
   function _drawEnemy(context, enemy) {
     context.fillStyle = "red";
@@ -43,21 +53,25 @@ var renderer = (function () {
   }
 
   function _render() {
+    var player = game.player();
     var canvas = document.getElementById("game-layer");
     var context = canvas.getContext("2d");
     context.fillStyle = "gray";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    var i, entity, entities = game.entities();
-    for(i = 0; i < entities.length; i++) {
-      entity = entities[i];
-      if(entity instanceof Enemy) {
-        _drawEnemy(context, entity);
-      } else if(entity instanceof Player) {
-        _drawPlayer(context, entity);
+    _drawPlayer(context, player);
+    var entity, entities = game.entities();
+    for (var i = 0; i < game.rows(); i++) {
+      for (var j = 0; j < game.cols(); j++) {
+        entity = entities[i][j];
+        if(entity instanceof Enemy) {
+          _drawEnemy(context, entity);
+        } else if(entity instanceof Player) {
+          _drawPlayer(context, entity);
+        }
       }
     }
   }
-  
+
   return {
     render: _render
   };
@@ -66,44 +80,104 @@ var renderer = (function () {
 // Physics Object
 var physics = (function() {
   function _update() {
-    var i, entities = game.entities();
-    for (i = 0; i < entities.length; i++) {
-      entities[i].y += entities[i].direction;
+    var entities = game.entities();
+    for (var i = 0; i < game.rows(); i++) {
+      for (var j = 0; j < game.cols(); j++) {
+        entities[i][j].x += entities[i][j].direction;  
+      }
     }
   }
 
   return { update: _update };
 })();
+
 // Game Object
 var game = (function() {
-  var _gameFieldHeight = 600;
+  var _player = new Player(0);
+  var _gameFieldHeight = 200;
+  var _gameFieldWidth = 200;
   var _entities = [];
+  var leftLimit = 0;
+  var rightLimit = 200;
+  var _rows = 5;
+  var _cols = 8;
+  var movementLength = 10;
 
   function _start() {
-    _entities.push(new Player(100, 175));
-    _entities.push(new Enemy(20, 25));
-    _entities.push(new Enemy(80, 25));
-    _entities.push(new Enemy(160, 25));
-
+    document.onkeydown = function(e) {
+      if(e.key == "ArrowRight") {
+        _player.move(movementLength);
+        renderer.render();
+      } else if (e.key == "ArrowLeft") {
+        _player.move(-movementLength);
+        renderer.render();
+      }
+      
+    }
+    for (var m = 0; m < _rows; m++) {
+      entity_row  = []
+      for (var n = 0; n < _cols; n++) {
+        entity_row.push(new Enemy(5 + (15 * n), 5 + (11 * m)));
+      }
+      _entities.push(entity_row);
+    }
     window.requestAnimationFrame(this.update.bind(this));
   }
 
   function _update() {
     physics.update();
-    for (var i = 0; i < _entities.length; i++) {
-      _entities[i].update();
+    var setReverse = false;
+    for (var m = 0; m < _rows; m++) {
+      for (var n = 0; n < _cols; n++) {
+        if (_entities[m][n].update()) {
+          setReverse = true;
+          break;
+        }
+      }
+    }
+    if (setReverse) {
+      for (var m = 0; m < _rows; m++) {
+        for (var n = 0; n < _cols; n++) {
+          if (_entities[m][n].advance()) {
+            _endgame();
+            return;
+          }
+        }
+      }
     }
     renderer.render();
-
     window.requestAnimationFrame(this.update.bind(this));
   }
 
+  function _endgame() {
+    console.log("??????????????");
+    for (var m = 0; m < _rows; m++) {
+      for (var n = 0; n < _cols; n++) {
+        _entities[m][n].clear();
+      }
+    }
+    var canvas = document.getElementById("game-layer");
+    var context = canvas.getContext("2d");
+    context.fillStyle = "gray";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "black";
+    context.font = "30px Arial";
+    context.textAlign = "center";
+    context.fillText("Game Over", canvas.width/2, canvas.height/2);
+  }
+
   return {
+    gameFieldHeight: function() { return _gameFieldHeight; },
+    gameFieldWidth: function() { return _gameFieldWidth; },
+    player: function() { return _player; },
     start: _start,
     update: _update,
     entities: function() { return _entities; },
-    gameFieldHeight: function() { return _gameFieldHeight; }
+    rows: function() { return _rows; },
+    cols: function() { return _cols; }
   };
+  renderer.render();
+  window.requestAnimationFrame(this.update.bind(this));
 })();
 
 game.start();

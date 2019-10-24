@@ -33,6 +33,7 @@ Enemy.prototype.clear = function() {
 var renderer = (function () {
   function _drawEnemy(context, enemy) {
     context.fillStyle = "red";
+    console.log(enemy);
     context.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
   }
 
