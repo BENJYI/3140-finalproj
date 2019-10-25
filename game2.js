@@ -19,6 +19,8 @@ Player.prototype.move = function(d) {
 function Enemy(x, y) {
   this.x = x;
   this.y = y;
+  this.i = -1;
+  this.j = -1;
   this.width = 10;
   this.height = 6;
   this.direction = -1;
